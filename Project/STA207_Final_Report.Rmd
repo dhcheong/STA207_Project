@@ -1,0 +1,744 @@
+---
+title: "STA207 Final Report"
+date: "2024-03-18"
+author: Dae Hyeun Cheong
+table: yes
+output:
+  rmdformats::readthedown:
+    default_style: "light"
+    downcute_theme: "default"
+    self_contained: true
+    thumbnails: false
+    lightbox: true
+    gallery: true
+    highlight: tango
+    code_folding: hide
+---
+
+```{r include = FALSE}
+library("dplyr")
+library("ggplot2")
+library("kableExtra")
+library("tidyverse")
+library("haven")
+library("car")
+library("cluster")
+library("Rtsne") 
+library("knitr")
+library("gridExtra")
+```
+
+```{r include = FALSE}
+data <- read_sav("STAR_Students.sav")
+
+columns <- c("gender","race","g1classtype","g1schid","g1surban","g1tchid","g1tgen","g1trace","g1thighdegree","g1tcareer","g1tyears","g1tmathss", "g1freelunch", "g1classsize")
+
+STAR <- data[,columns]
+
+colnames(STAR) <- c("gender","ethnicity", "star1", "schoolid1","school1","teacher_id", "tgender1", "tethnicity1", "degree1", "ladder1","experience1", "math1", "lunch1", "classsize1")
+
+STAR$gender <- as.factor(STAR$gender)
+STAR$ethnicity <- as.factor(STAR$ethnicity)
+STAR$star1 <- as.factor(STAR$star1)
+STAR$schoolid1 <- as.factor(STAR$schoolid1)
+STAR$school1 <- as.factor(STAR$school1)
+STAR$teacher_id <- as.factor(STAR$teacher_id)
+STAR$tgender1 <- as.factor(STAR$tgender1)
+STAR$tethnicity1 <- as.factor(STAR$tethnicity1)
+STAR$degree1 <- as.factor(STAR$degree1)
+STAR$ladder1 <- as.factor(STAR$ladder1)
+STAR$lunch1 <- as.factor(STAR$lunch1)
+
+```
+
+# Abstract
+
+In order to answer questions (1) regarding whether there are any differences in math-scaled scores in 1st grade across class types and (2) which class type is associated with the highest math-scaled scores in 1st grade, the dataset from the STAR project and a possible ANOVA model were carefully examined. The report found that there is no statistical evidence that the location of the school, teacher's experience, and degree are the main effects of the ANOVA model, while highlighting that the ethnicity of the student is a possible main effect in addition to school and class type.
+
+Using a Three-Way ANOVA model, the report found statistical evidence that the means of math-scaled scores were different across the class types at a significance level of 0.05. Also, using Tukey's Range Test, the report found that a small class is associated with the highest math-scaled score in 1st grade at a significance level of 0.05. Although there are some violations in assumptions in the ANOVA model and some limitations, the report concludes that the results of the inferential part are still valid and that class type is possibly a cause of the difference in means of math-scaled scores, assuming a controlled-randomized design of the STAR project. 
+
+# Introduction 
+
+> **It is the supreme art of the teacher to awaken joy in creative expression and knowledge.**
+
+Albert Einstein, widely known as the most intelligent human being in our history, delineated the teacher's role as pivotal in maximizing students' potential and aiding their growth as educated individuals by delivering knowledge. Despite the importance of teachers in students' education, it would not be realistic to claim that the teacher is the sole factor responsible for maximizing students' performance. Since education is the integral foundation and source of power for every nation, it is always necessary for the government to find a way to improve the quality of education, considering many different aspects of education such as enhancing utility, improving teacher education, and adjusting class size.
+
+In an effort to improve education quality, CSR (**C**lassroom **S**ize **R**eduction), has been a debatable topic in the field of education regarding its effectiveness and efficiency, with many studies yielding mixed results. Some researchers insist that implementing CSR costs more than it gains, while others have found it to be effective for specific groups of people, such as minority groups or male students in lower grade levels (Whitehurst and Chingo 6).
+
+The controversy surrounding CSR makes the Student-Teacher Achievement Ratio, or STAR, study conducted in Tennessee during the late 1980s more valuable, as it is regarded as the most influential and credible research supporting CSR (Whitehurst and Chingo 5). Due to its credibility as one of the most well-controlled experiments in the field of education, the STAR dataset has been employed in many textbooks and research papers. The project is known for successfully implementing the first controlled experiment in education on a statewide basis (Mosteller).
+
+Using the STAR dataset, the following report aims to explore the validity of CSR by addressing the questions of interest: **whether there are any differences in math-scaled scores in 1st grade across class types**, and **which class type is associated with the highest math-scaled scores in 1st grade**. By exploring these two questions, we will be able to move one step closer to determining whether CSR is an effective and efficient way of improving student performance.
+
+# Background 
+
+The project STAR was four year longitudinal study conducted by Tennessee State Department of Education from 1985 to 1989 (Achilles et al. 2) to get a more solid evidence in using CSR as part of  their major educational reform (Mosteller). 
+
+The project STAR mainly focuses on the effect of class size to students in lower grade level (Kindergarten to 3rd grade), and this is because they are group who need most teacher's attention since "many need training in paying attention, carrying out tasks, and engaging in appropriate behavior toward others in a working situation" (Mosteller) - in other words, they are most easily influenced by number of students in the classroom.  
+
+The experiment was conducted in controlled-randomized way. From the kindergarten, the student were randomly assigned to 'small' (15-17 students), 'regular' (22-25 students) and 'regular with full time aide' (22-25 students with teaching aide) classroom in 79 schools, following the strict and rigorous procedure of STAR project. (Achilles et al. 6-7)
+
+The dataset contains 11601 observations who participated to the experiment for at least one year. 
+
+The data contains 379 different variables, containing (Achilles et al. 3-9): 
+
+• Demographic variables
+
+• School and class identifiers
+
+• School and teacher information
+
+• Experimental condition (“class type”)
+
+• Norm-referenced and criterion-referenced achievement test scores
+
+• Motivation and self-concept scores
+
+The data also contains other variables that are not relevant to analysis in this report. Please look for the reference to see these omitted variables. 
+
+## Data Dictionary 
+
+```{r}
+Variable_Name = c("gender","ethnicity", "star1", "schoolid1","school1","teacher_id", "tgender1", "tethnicity1", "degree1", "ladder1","experience1", "math1", "lunch1", "classsize1")
+
+Description = c("factor indicating student's gender.",
+                "factor indicating student's ethnicity with levels",
+                "factor indicating the STAR class type in 1st grade",
+                "factor indicating school ID in 1st grade.",
+                "factor indicating school type in 1st grade",
+                "factor indicating teacher ID of 1st grade teacher",
+                "factor indicating gender of 1st grade teacher",
+                "factor indicating teacher's ethnicity in 1st grade with levels",
+                "factor indicating highest degree of 1st grade teacher",
+                "factor indicating teacher's career ladder level in 1st grade",
+                "years of teacher's total teaching experience in 1st grade.",
+                "continuous variable that indicates total math scaled score in 1st grade",
+                "factor indicating whether the student qualified for free lunch in 1st grade",
+                "number of students of the 1st grade student's classroom"
+                )
+
+Interpretation = c("1 = male, 2 = female",
+           "1 =  Caucasian, 2 = African-American, 3 = Asian, 4 = Hispanic, 5 = American-Indian or 6 = other",
+           "1 = small, 2 = regular, 3 =  regular-with-aide",
+           "Data itself is a school id",
+           "1 = inner-city, 2 = suburban, 3 = rural, 4 = urban",
+           "Data itself is a teacher id", 
+           "1 = male, 2 = female",
+           "1 = Caucasian, 2 =  African-American",
+           "2 = bachelor, 3 =  master, 5 = specialist, or 6 = phd",
+           "1 = level1, 2 = level2, 3 = level3, 4 = apprentice, 5 = probation, 6 = noladder",
+           "Unit in Years",
+           "Unit in Points",
+           "1 = qualified, 2 = not qualified",
+           "Unit in students")
+
+
+data_dictionary <- data.frame(Variable_Name, Description, Interpretation)
+
+kable(data_dictionary, booktabs =TRUE)
+
+```
+ 
+## Rigorous Design of STAR
+
+> These list are summarized by Charles M. Achilles in his NCPEA Policy Brief written in 2012. (See the reference)
+
+1. All Tennessee schools with K-3 classes were invited to participate. **(Reducing bias from choosing participating schools)**
+
+2. Each school included in the study had to have a large enough student body to form at least one of each of the three class types - small, regular and regular with full time aide. **(The design controlled for differences in resources, leadership and facilities among schools.)**
+
+3. 79 schools in 42 systems met the within school design requirement, and the STAR sample was nearly 7,000 students per grade level. **(large sample gave more credibility to the result of the experiment)**
+
+4. Schools from inner-city, rural, urban, and suburban locations were included. **(Reduced Bias from student's background)** 
+
+5. Students and teachers were randomly assigned to their class type. **(Reduced the sampling bias)**
+
+6.  Investigators followed the standard procedures for confidentiality and human subjects’ research.
+
+7. No children were to receive fewer services than normal because of the experiment.
+
+8. Student achievement was tracked by standardized tests, which were carefully monitored. 
+
+9. An outside consultant was contracted to perform all primary statistical analyses.
+**(Additional safeguard to the possible biased result)**
+
+## Criticisim on Experiment Design 
+
+The STAR project was highly controlled and randomized overall. However, confirming equal and consistent teaching quality within each classroom raises some questions. Given the project's goal to assess the effectiveness of CSR in improving student performance, the inconsistent teaching quality introduces a confounding factor, complicating the causal analysis. **In other words, it is crucial to ensure that equal and consistent teaching quality was maintained in each classroom, irrespective of teachers' demographics and education levels.** Since teaching quality is a critical factor in determining student performance, improving the project's effectiveness requires greater attention to controlling teaching quality across classrooms.
+
+The project has already made efforts to provide equal and consistent teaching quality to every classroom. For instance, during the STAR project, a "subgroup of 57 teachers in thirteen randomly selected schools in Grade 2, and another 57 teachers in the same schools in Grade 3 were given three days of in-service training before school started" (Achilles et al. 20-21). However, the STAR project summary report indicates that such efforts did not statistically impact student performance because "half the STAR-trained second-grade teachers said they had not modified their teaching as a result of the training" (Achilles et al. 21).
+
+To enhance the project:
+
+(1) The most preferable approach is to provide participating teachers with proper in-service training, outlining clear procedures on how classes should be taught, and ensuring the consistent enforcement of these procedures in every classroom. While this method may be costly, at the very least, offer in-service training to low-performing teachers.
+
+(2) Allow teachers adequate time for teaching, evaluating, diagnosing learning, and preparation. It is also important to assist teachers in balancing their free time and work time. According to the STAR report, "Project STAR teachers completed a slightly modified version of the Teacher Problems Checklist" and reported that they perceived such problems. 
+
+## Examination of Teaching Quality in STAR Dataset Using Fligner-Killeen Test
+
+According to the STAR Final Summary Report (Achilles et al.), the project was well controlled overall, but **the report also hints that the dataset might suffer from unequal teaching quality across the classroom due to limitation in controlling teaching quality.** In other words, there exist some possibility that students got received teaching with different quality depends on teacher's experience or degree. This can be critical to our inferential analysis, (such as in making equal variance assumption), and may signal that teacher's experience and degree should be included as a main effect of the ANOVA model. Therefore, examining our STAR dataset on teaching quality can be very helpful in building more improved model. 
+
+**In the analysis below, the report will examine STAR dataset to determine if there is evidence showing that equal and consistent teaching quality was provided to students regardless of teacher's degree and experience and whether `experience1` and `degree1` be included as our main effect of the ANOVA model.**  
+
+### Quantifying "Teaching Quality" 
+
+Quantifying "teaching quality" is a difficult task. To make this task easier, we will make two assumptions:  
+
+1) We assume that if project STAR provided unequal and inconsistent teaching quality depends on teacher's experience or degree, then variance of student's performance will vary. This also requires another assumption that teaching quality will impact student's performance. 
+
+2) Additionally, we will assume that teacher's experience and degree are the most important factor in determining teaching quality. 
+
+Based on these two assumptions, **in order to quantify "teaching quality", we will utilize the residual obtained after regressing all variables other than teacher's experience and degree on the math scaled score.** In this way, we can have a better picture of effect of teacher's experience and degree on the student performance, discarding all other effect coming from other factors in the data set.
+
+### Teaching Quality By Degree of Teacher 
+
+```{r include = FALSE}
+# Making new dataset and getting residuals accounting all factors other than experience and degree1
+
+STAR_copy <- STAR
+STAR_copy <- STAR_copy[complete.cases(STAR_copy), ]
+fit_cond <- lm(math1 ~ gender + ethnicity + star1 + school1 +lunch1 + tgender1 + tethnicity1, data = STAR_copy)
+residuals <- fit_cond$residuals
+STAR_copy$residuals <- residuals 
+
+STAR_copy$Degree_Level <- ifelse(STAR_copy$degree1 %in% c(2, 3), "Lower", "Higher")
+
+breaks <- c(0, 10, 20, 30, 40)
+labels <- c("0_10", "10_20", "20_30", "30_40")
+
+# Add a new column based on the specified ranges
+STAR_copy$Experience_Range <- cut(STAR_copy$experience1, breaks = breaks, labels = labels, include.lowest = TRUE)
+
+```
+
+
+```{r}
+box_plot_data <- STAR_copy %>%
+                    select(Degree_Level, residuals)
+
+# Constructing boxplot 
+
+ggplot(box_plot_data, aes(x = Degree_Level, y = residuals)) +
+  geom_boxplot(fill = "deeppink4", color = "azure4", lwd =0.7) + 
+  labs(title="Box Plot of Residuals vs. Type of Degree (Teacher)", x="Type of Degree", y = "Residuals") + 
+  # geom_abline(intercept = 180, slope = -25, linewidth =1.5, color = 'deeppink3', linetype = "dashed") +
+  #  geom_abline(intercept = -125, slope = 15, linewidth =1.5, color = 'deeppink3', linetype = "dashed") +
+  theme_bw() +
+  theme(panel.grid.major.y = element_blank(),
+        legend.position = "off")
+```
+
+Since the number of teachers who are specialists/Ph.D. was far fewer than the number of teachers who had bachelor's/masters degrees, the group of specialists and Ph.D.s was grouped into 'Higher', and the group of bachelor's/masters was grouped into 'Lower'. This decision is based on the assumption that the distribution of residuals for Ph.D.s and specialists is similar, as well as for bachelor's and masters degrees. This assumption is plausible according to the box plot of residuals for each degree **(See Appendix Figure 1)**.
+
+According to the above box plot, it is evident that the spread of the box-whisker plot was shorter for the 'Higher' group than for the 'Lower' group. This intuitively aligns with the idea that students led by teachers with higher degrees receive a different quality education than those in the 'Lower' group. However, this intuition should be statistically tested since we had far more observations in the 'Lower' group than in the 'Higher' group - the variation might be due to the lack of elements in each group.
+
+To investigate further, we will perform a Fligner-Killeen test to assess whether the variances in each group are homogeneous. This nonparametric test is chosen because it does not require any normality assumption, which is hard to verify.
+
+$$H_{0}: {\rm All \ groups \ have \ an \ equal  \ variance.  } \\ H_{1}:  {\rm At \ least \ two \ groups \ have \ a \ different \ variance. } $$
+
+```{r}
+fligner.test(residuals ~ Degree_Level, data = box_plot_data)
+```
+
+The test yields a p-value greater than 54%, indicating a failure to reject the null hypothesis at a significance level of 0.05. This suggests that both groups have equal variance at the 0.05 significance level. The test strongly implies that the spread we observed earlier is solely due to the difference in sample size. Furthermore, it suggests that teaching quality might not vary based on the type of degree a teacher has. 
+
+
+### Teaching Quality By Experience.
+
+```{r include = FALSE}
+data_scatter <- STAR_copy %>% 
+              select(residuals, experience1, teacher_id, Experience_Range) %>%
+              group_by(teacher_id, experience1, Experience_Range) %>%
+              summarise(residuals = mean(residuals))
+```
+
+```{r}
+ggplot(data_scatter, aes(x = experience1, y=residuals)) + geom_point(size = 1.5, color = 'deeppink4') + labs(title="Scatter Plot of Scaled Math Score vs. Years of Experience (Teacher)", x="Years of Experience", y = "Scaled Math Score") + 
+  # geom_abline(intercept = 80, slope = -1, linewidth =1.5, color = 'deeppink3', linetype = "dashed") +
+  #  geom_abline(intercept = 470, slope = 0.5, linewidth =1.5, color = 'deeppink3', linetype = "dashed") +
+  theme_bw() +
+  theme(panel.grid.major.y = element_blank(),
+        legend.position = "off")
+```
+
+This also exhibits a similar trend to the previous box plot: as teachers gain more experience, they deliver more consistent education. However, this must also be statistically tested since, as we can observe, we have fewer samples of teachers with more than 20 years of experience than teachers with less than 20 years of experience.
+
+To perform the test of homogeneity of variance, we grouped teachers into four different groups according to their years of experience, using an interval of 10 years from 0 to 40 years. This ensures that we have more sample points for each group. This is based on the assumption that teachers in groups with intervals of 10 years will have a similar distribution.
+
+
+$$H_{0}: {\rm All \ groups \ have \ an \ equal  \ variance.  } \\ H_{1}:  {\rm At \ least \ two \ groups \ have \ a \ different \ variance. } $$
+
+```{r}
+fligner.test(residuals ~ Experience_Range, data = data_scatter)
+```
+The test result indicates a p-value of 0.1678, making it impossible to reject the null hypothesis. With a significance level of 0.05, it is statistically significant that the variance across the years of experience is homogeneous, supporting the earlier assertion that the difference in variance might be attributed to the limited sample points in the group with more years of experience.
+
+### Concluding Remarks 
+
+Although the design of the experience revealed some possible weaknesses in controlling teaching quality, there was no statistical evidence suggesting the presence of unequal or inconsistent teaching quality depending on teachers' experience or degree. The examination implies that teachers' experience and degree did not have a statistically significant impact on students' performance; therefore, experience and degree do not have enough evidence to be considered main effects of the ANOVA model in the inferential analysis. 
+
+## Caveats in Initial Analysis Report 
+
+The biggest caveats in the initial analysis report were that variables for the descriptive analysis were not carefully chosen and were not analyzed in detail. In the descriptive analysis, I claimed that the teacher is an important source of the variation in the math-scaled score; therefore, `experience1`, `degree1`, and `ladder1` must be included as part of our analysis. However, from our previous analysis, we discovered that a teacher's experience and degree have a limited impact on students' performance.
+
+In addition to not carefully choosing variables to investigate, I also made a mistake in carelessly omitting all of the NA values from the dataset, as well as providing more explanation (such as possible remedies) in the sensitivity analysis. Inferential analysis in the initial report required a more organized, detailed discussion of results.
+
+# Descriptive Analysis 
+
+## Analysis of N/A in the Dataset
+
+```{r}
+missing_proportion <- STAR %>%
+  summarise_all(~mean(is.na(.))) %>%
+  gather(column, proportion)
+
+# Plotting
+ggplot(missing_proportion, aes(x = column, y = proportion)) +
+  geom_bar(stat = "identity", fill = "deeppink4") +
+  labs(x = "Variables", y = "Proportion of Missing Data") +
+  ggtitle("Proportion of Missing Data for Each Variable") +
+  coord_cartesian(ylim = c(0.4, 0.44)) +
+   theme_bw() +
+  theme(panel.grid.major.y = element_blank(),
+        legend.position = "off") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+### Key Findings
+
+1) The absence of a `math1` value implies that these groups of students did not take the test for some reason or did not participate in the STAR project during the 1st grade. Since this is not our group of interest, these observations will be removed.
+
+2) According to the dataset description, NA in `star1` means the student did not attend any of the STAR classes, which means this group is also out of our interest. These observations can also be safely eliminated.
+
+3) Many NA values were discovered in the `lunch1` variable, but these observations will not be deleted. After eliminating observations with NA in `math1` and `star1`, the proportion of NA in the `lunch1` variable decreased to about 3%. Eliminating these observations solely because they have NA in the `lunch1` variable risks losing important data.
+
+4) Teachers with the teacher IDs 16821106 and 24477406 did not report all of their information (gender, ethnicity, ladder, degree, experience), and teacher 24477406 did not report ladder information. However, these observations will also be kept since they still have student information, which is what we are more interested in. We need to keep in mind that these variables may be automatically deleted when we run regression or other statistical tools.
+
+```{r include = FALSE}
+cleaned_STAR <- STAR %>% 
+              filter(!is.na(math1) & !is.na(star1))
+na_rows <- cleaned_STAR[apply(cleaned_STAR, 1, function(row) any(is.na(row))), ]
+```
+
+
+## Student's Scaled Math Score By Teachers, Class-Type and School.
+
+The following table summarizes student's performance using six different statistics, aggregated by each teachers. The NULL values are removed to get the statistics. 
+
+```{r warning = FALSE, message= FALSE}
+
+data_sum = STAR %>% 
+        group_by(teacher_id) %>%
+        summarise(
+          median = median(math1, na.rm = T),
+          mean = mean(math1, na.rm = T),
+          min = min(math1, na.rm = T),
+          max = max(math1, na.rm = T),
+          Q1 = quantile(math1, 0.25, na.rm = T),
+          Q3 = quantile(math1, 0.75, na.rm = T)
+        )
+head(data_sum, 10) %>%
+  kbl(caption = "Summary Measures of each Teachers") %>%
+  kable_classic(full_width = F, html_font = "Cambria")
+```
+
+The histogram of mean score of each teacher shows that the distribution of mean score is almost normal, which is direct result of Central Limit Theorem **(See Appendix Figure 2)**. Note that we used mean other than median, since we do not have any outliers in mean score due to its fixed maximum and minimum. 
+
+```{r}
+g1 <- ggplot(cleaned_STAR, aes(x = star1, y = math1)) +
+  geom_boxplot(fill = "deeppink4", color = "azure4", lwd =0.7) + 
+  labs(title="Box Plot of Scaled Math Score vs. Class Type", x="Class Type", y = "Scaled Math Score") + 
+  theme_bw() +
+  theme(panel.grid.major.y = element_blank(),
+        legend.position = "off") +
+  theme(plot.title = element_text(size=6))
+
+g2 <- ggplot(cleaned_STAR, aes(x = schoolid1, y = math1))+ geom_point(alpha=0.3, color = 'deeppink4')+ 
+  labs(title="Scatter Plot of School ID vs. Math Scaled Score", x = "School ID", y = "Math Scaled Score") +
+  theme_bw() +
+  theme(axis.text.x = element_blank(), 
+        axis.ticks.x = element_blank(),
+        panel.grid.major.y = element_blank()) +
+  theme(plot.title = element_text(size=12))
+
+grid.arrange(g1, g2, widths=c(3,6))
+```
+
+The box plot shown above (Box Plot of Scaled Math Score vs. Class Type) clearly indicates that a box plot alone is insufficient to answer our primary question of interest: whether there are any differences in math-scaled scores in 1st grade across class types. This is due to the similarity of its shape across the class types, suggesting the need for further statistical tests to answer our question.
+
+Additionally, the scatter plot of scores and school ID shows that the distribution of math-scaled scores by school ID seems fairly random. We observe some schools with different spreads of distribution, and the distribution of mean math scores by school does not exhibit a smooth curve as the mean math scores by teachers do **(See Appendix Figure 3)**.
+
+It is important to note that, by experimental design, schools are 'nested within location, but crossed with class type, since all three class types were presented in each school' (Achilles et al. 7). In addition to our findings from the plots, this implies that every school has its own influence of shared conditions on all project classes within the school; therefore, it should be considered as a main effect in our ANOVA model.
+
+## Possibly Relevant Variables: Location
+
+According to research on the effect of the school environment on academic performance by Kweon et al., schools with more trees had a higher percentage of proficient scores in Mathematics standardized tests. In contrast, schools with more 'featureless empty ground' have a negative effect on students' academic performance. As research suggests, the location of the school has the possibility of having significant impacts on student performance, so it is worth exploring the location variable.
+
+```{r}
+ggplot(cleaned_STAR, aes(x = school1, y = math1, fill = star1)) +
+  geom_boxplot() + 
+  labs(title="Box Plot of Scaled Math Score vs. Location", x="Location", y = "Scaled Math Score") +
+  theme_bw() +
+  theme(panel.grid.major.y = element_blank()) +
+  guides(fill=guide_legend(title="Class Type"))+
+  scale_fill_manual(values=c("deeppink2", "deeppink3", "deeppink4"))
+```
+
+To interpret the results, it is worth mentioning some information about the STAR dataset.
+
+1. When the State of Tennessee passed legislation regarding the STAR project, they specifically required the project to include "inner city, suburban, urban, and rural schools" to assess the effects of class size in different school locations (Archilles et al. 3). This implies that the inclusion of the location variable might not be directly related to answering our primary question of interest. Instead, it is more relevant to addressing a more specific question: How does the effect of class size differ in different school locations?
+
+2. The classification of the location variable (inner city, suburban, urban, and rural schools) had caveats in its setting because some of this classification was not completely dependent on location. For example, inner city and suburban schools are in metropolitan areas, but a school was classified as inner city if more than half of its students received reduced-lunch program benefits. Because of this classification, schools labeled as "inner-city" had significantly more low-socioeconomic families, which possibly resulted in low student performance in inner-city schools.
+
+It is important to note that due to the classification setting, there is a high possibility that the observed difference in scaled math scores by location is not purely due to location; it is possibly a confounded result with artificially distributed low socioeconomic families across locations. This implies that it is difficult to conclude that there are significant differences in student performance by different locations; therefore, the location variable cannot be considered one of our main effects in our ANOVA model.
+
+Since we already mentioned in the previous part that the school variable is nested within the location variable, simply including the school variable as a main effect will serve to account for the subtle impact of location variation.
+
+## Using Supervised Clustering Using KNN with Gower's Distance 
+
+In statistics, clustering techniques are often very helpful in exploratory data analysis for identifying obscure trends and relationships between observations within the dataset. In this section, we will apply the K-Nearest Neighbors algorithm to cluster students to see if there are distinct subgroups within the dataset. We will then carefully interpret the distinct clusters of students to discover any helpful insights that might assist us in creating a better ANOVA model.  
+
+Note that instead of using Euclidean distance, we will use a Gower's distance to cluster students since our feature is mixture of numerical and factor variable. Using function daisy, we can calculate Gower's distance (which must be range from 0 to 1) between each students (since we have total of 6598 observations, 6598 choose 2 gives total number of dissimilarity, which equal to 21763503 dissimilarities). Here is a summary of Gower's distance between each students:
+
+```{r}
+data_knn <- cleaned_STAR %>% select(star1, math1, gender, ethnicity,school1,
+                        tgender1,tethnicity1,degree1, ladder1, experience1) 
+gower_dist <- daisy(data_knn, metric = "gower")
+summary(gower_dist)
+```
+In order to search for optimal number of cluster, we use "silhouette width, an internal validation metric which is an aggregated measure of how similar an observation is to its own cluster compared its closest neighboring cluster" **(See Reference 6)**. Higher the the silhouette width, it is more likely to be an optimal number of cluster. 
+
+The plot below shows that performing KNN with 2 clusters will provide the best result according to silhouette width. 
+
+```{r eval = FALSE}
+# Calculate silhouette width for many k using PAM
+
+sil_width <- c(NA)
+
+for(i in 2:10){
+  
+  pam_fit <- pam(gower_dist,
+                 diss = TRUE,
+                 k = i)
+  
+  sil_width[i] <- pam_fit$silinfo$avg.width
+  
+}
+saveRDS(sil_width, "./sil_width.rds")
+```
+
+```{r}
+sil_width <- readRDS("./sil_width.rds")
+plot(1:10, sil_width,
+     xlab = "Number of clusters",
+     ylab = "Silhouette Width")
+lines(1:10, sil_width)
+```
+
+This is a result of the KNN clustering with Gower Distance. 
+
+```{r}
+pam_fit <- pam(gower_dist, diss = TRUE, k = 2)
+pam_results <- data_knn %>%
+  mutate(cluster = pam_fit$clustering) %>%
+  group_by(cluster) %>%
+  do(the_summary = summary(.))
+pam_results$the_summary
+```
+Some intriguing findings emerge:
+
+(1) A cluster with a significantly higher proportion of African-American students (Cluster 2) exhibited a lower average math score than a cluster with a significantly higher proportion of Caucasian students. This suggests that the ethnicity of students can contribute to variations in math scores.
+
+(2) The cluster with a significantly higher proportion of Caucasian students (Cluster 1) is predominantly taught by white teachers, while Cluster 2 shows a more equitable distribution of teacher races. This implies that schools with a higher percentage of Caucasian students tend to hire more Caucasian teachers than African American teachers.
+
+(3) Building on the results from (2), the cluster with a significantly higher proportion of African-American students (Cluster 2) had teachers who were neither specialists nor Ph.D. holders. Additionally, Cluster 2 had more inexperienced teachers compared to Cluster 1. This implies that depending on the students' ethnicity, there is a possibility that educational quality or available resources of school may vary.
+
+```{r}
+ggplot(cleaned_STAR, aes(x = ethnicity, y = math1)) +
+  geom_boxplot(fill = "deeppink4", color = "azure4", lwd =0.7) + 
+  labs(title="Box Plot of Scaled Math Score vs. ethnicity of student", x="Ethnicity of Student", y = "Scaled Math Score") + 
+  theme_bw() +
+  theme(panel.grid.major.y = element_blank(),
+        legend.position = "off") 
+```
+
+Since we have far fewer samples in Asian, Hispanic, American-Indian, and other ethnic groups, it is challenging to draw any conclusions about these races except for Caucasian and African-American students. However, the interaction plot confirms a significant difference in the distribution of scaled math scores between Caucasian and African-American students (the upper quartile of African American students is lower than the mean of Caucasian students). In conclusion, together with the interaction plot, the results of KNN clustering of students with Gower's Distance suggest that a student's ethnicity can be a possible factor that impacts student performance. **Therefore, the ethnicity of the student will be included as a main effect in our model.**
+
+# Inferential Analysis
+
+## Choice of Model
+
+From our background and descriptive analysis, we discovered that class-type, school, and ethnicity is a reasonable main effect of the data set. Therefore, we propose that, to answer our question of interest, three way ANOVA model with no interaction terms can do the best job. 
+
+The model is defined with a three way ANOVA model as follows
+
+$$Y_{ijkl} = \mu_{...} + \alpha_{i} + \beta_{j} + \gamma_{k} + \epsilon_{ijkl}$$
+
+where the index $i$ represents the class type: small ($i=1$), regular ($i=2$), regular with aide ($i=3$), and the index $j$ ($j = 1,...,76)$ represents the school indicator. The index $k$ ($k = 1,...,7$) represents the ethnic group of students (Please refer to Data Dictionary in Background Chapter). The index $l$ ($l = 1,...,n_{ijk}$) represents the teacher of student with $l$th ethnicity in the $i$th class type and in the $j$th school.
+
+### Omittion of Interaction Terms 
+
+Note that we have far more $\beta_{j}$ than $\alpha_{i}$ and $\gamma_{k}$. Including the interaction terms $\alpha_{i} \beta_{j}$, $\alpha_{i} \gamma_{k}$ and $\beta_{j} \gamma_{k}$ into the model will significantly increases the complexity of the model. Since our question of interest is mostly related with $\alpha_{i}$, increasing the model complexity by introducing the interaction terms will not significantly help our analysis. Because of extreme increase in model complexity by introducing the interaction terms, it is possible that benefit of reducing complexity overwhelm the gain from including interaction terms. Therefore, the interaction terms will not be included to the model.  
+
+### Explanation of the notation
+
+-   $Y_{ijkl}$ represents the mean math scaled score of 1st grade students of the $i$ th class type in the $j$ th school for the $l$ th teacher. These students also in $k$th ethnic group. 
+
+-   $\mu_{...}$ represents the overall mean of math scaled scores of all students regardless of class types, school and ethnic group. 
+
+-   $\alpha_{i}$ represents the main effect of the $i$ th class type. We have constraint that $\sum_i \alpha_{i} = 0$.
+
+-   $\beta_{j}$ represents the main effect of the $j$ th school. We have constraint that $\sum_j \beta_{j} = 0$.
+
+-   $\gamma_{k}$ represents the main effect of the $k$ th ethnic group. We have constraint that $\sum_k \gamma_{k} = 0$.
+
+-   $\epsilon_{ijkl}$ represents the random error in the $i$ th class type and the $j$th school for the $l$ th teacher who teaches $k$th ethnic group. 
+
+### Assumptions of the Model
+
+We have $\{\epsilon_{ijkl}\}$ are independently and identically distributed $N(0,\sigma^2)$. This implies that our response variable $Y_{ijkl}$ is also normally distributed and variance across the each group is equal.
+
+## Model Fitting 
+
+The fitted result is very lengthy because we have many factor levels for `schoolid1`. The coefficients of the model should be interpreted as follow:
+
+1. Intercept: mean math scaled score of 1st grade Caucasian students of the regular class type of the school with schoolid 1. 
+
+2. Coefficient of class type variable: change in mean math score of 1st grade students by changing the class type, assuming every other variable stays the same. 
+
+3. Coefficient of schoolid variable: change in mean math score of 1st grade students by changing the schoolid, assuming every other variable stays the same. 
+
+4. Coefficient of ethnicity variable: change in mean math score of 1st grade students by changing the ethnic group of student, assuming every other variable stays the same.
+
+By observing these interpretation of each coefficient, we can clearly see that reporting these coefficient is not very helpful in answering our question of interest. 
+
+```{r warning = FALSE, message = FALSE}
+anova_df <- cleaned_STAR %>% 
+              select(math1, star1, schoolid1, teacher_id, ethnicity) %>%
+              group_by(teacher_id, star1, schoolid1, ethnicity) %>%
+              summarise(math1 = mean(math1))
+
+anova.fit = lm(math1 ~ star1 + schoolid1 + ethnicity, data=anova_df)
+coefficients <- coef(anova.fit)
+
+avg_coef_star1 <- mean(coefficients[2:3])
+avg_coef_schoolid1 <- mean(coefficients[4:78])
+avg_coef_ethnicity <- mean(coefficients[79:83])
+
+result_df <- data.frame(average_alpha = avg_coef_star1, 
+                        average_beta = avg_coef_schoolid1,
+                        average_gamma = avg_coef_ethnicity)
+colnames(result_df) <- c("average of alpha", "average of beta", "average of gamma")
+
+result_df %>%
+kbl(caption = "Summary of Coefficients of Linear Model") %>%
+kable_classic(full_width = F, html_font = "Cambria")
+
+```
+
+The summary shows that changing small class type to any other type decreased mean score by 9.85, while interpreting average of beta is useless. Also, changing ethnic group from Caucasian to any other ethnic group decreased mean test score by 8.1. This results correspond to what we have found in the descriptive analysis. 
+
+## F-Test 
+
+To answer the question of interest whether there is any differences in math scaled scores in 1st grade across class types, we can perform the F-test using anova using a significance level of 0.05. The hypothesis to test will be: 
+
+$$H_{0}: \alpha_{i} = 0 \\ H_{1}: {\rm not \ all\ } \alpha_{i} {\rm \ are \ } 0 $$
+
+```{r warning = FALSE}
+t2 = Anova(lm(math1 ~ star1 + schoolid1 +ethnicity, data=anova_df), type=2)
+t2
+```
+### Key Findings 
+
+1. The bigger the F-value, the greater the variation between the means of each group than the variation within the sample. Since we have a higher F-value for class type than for school ID, it implies that the mean of scaled math scores across the school was more similar than the mean of scaled math scores across the class types. It is also worth mentioning that there was more variation in means of test scores across ethnicity than class types and schools. This high variation is possibly due to extremely smaller sample sizes for some ethnic groups (e.g., we only had 4 American-Indian students, and their mean was significantly lower than other groups), but still implies that ethnicity can be an important source of variation in test scores.
+
+2. The p-value of the class type is far below 0.05, so we can reject our null hypothesis at a significance level of 0.05. This means we can conclude that there exists a statistically significant difference in mean scores across the class types, answering our question of interest that there are statistically significant differences in math scaled scores in 1st grade across class types at a significance level of 0.05.
+
+## Tukey's Range Test
+
+We perform the Tukey's Range Test to see which class type is associated with the highest math scaled scores in 1st grade. The plot below shows 95% Familiy-Wise Confidence Interval of Difference of Means Using Tukey's Range Test.
+
+```{r}
+tukey_df <- cleaned_STAR %>% 
+            select(math1, star1, schoolid1, teacher_id) %>%
+            group_by(teacher_id, star1, schoolid1) %>%
+            summarise(math1 = mean(math1))
+
+tukey_anova <- aov(math1 ~ star1, data = tukey_df)
+t <-TukeyHSD(tukey_anova, conf.level = 0.95)
+df <- as.data.frame(t$star1)
+df$class_type <- rownames(df)
+ggplot(df, aes(x = class_type, y = diff)) +
+  geom_pointrange(aes(ymin = lwr, ymax = upr), lwd =1.5, size = 0.7, col = "deeppink4")+
+   geom_hline(yintercept=0, linetype='dotted', col = 'azure4', lwd =1) +
+  labs(x = "Class Size",
+       y = "Difference in Mean",
+       title = "95% Familiy-Wise Confidence Interval of Difference of Means Using Tukey's Range Test") +
+  theme_bw() +
+  theme(panel.grid.major.y = element_blank(),
+        legend.position = "off") +
+  theme(plot.title = element_text(size=10))
+  
+```
+
+### Key Findings
+
+1. From the plot above, we can statistically conclude that there is no difference in the mean between regular and regular + aide at a significance level of 0.05. This implies that the effect of having academic aide inside the classroom might be negligible, as it does not improve students' math test scores.
+
+2. The plot demonstrates that the differences in mean between regular + aide and small, as well as regular and small, are both negative, clearly implying that there exists strong statistical evidence that small class size is associated with the highest math scaled score in the 1st grade at a significance level of 0.05. In other words, the mean of scaled math scores of the small class was significantly higher than that of other class types at a significance level of 0.05.
+
+According to the article "From the Archives: The Case for Smaller Classes" written by Frederick Mosteller in Harvard Magazine, smaller classes can be associated with better performance in tests because teachers can have more time to give to individual children. Mosteller also adds that the teacher and student ratio can be significant for low-grade level students, since when they first come to school, they have to deal with lots of confusion and have to learn lots of things such as socializing with friends and how to behave and be successful in school. This supports our conclusion that small class size is more associated with a higher mean score of 1st-grade students, and if what Mosteller claimed is true, then the effect of small class size on student performance should diminish as student goes to higher grade-level. 
+
+## Deviation from Result from Initial Analysis Report 
+
+The main deviation from the initial analysis report is that the final report used a different model, which used Three-Way ANOVA instead of Two-Way ANOVA by including one more main effect: ethnicity. Because of the inclusion of this new variable, the F-value for school type increased from 9.44 to 11.5, indicating that we could see a little bit more variation between each class type that was hidden by the influence of the ethnicity variable in the initial analysis report. Based on this, we may claim that the Three-Way ANOVA model worked slightly better than the Two-Way ANOVA, but it was still true that we rejected the null hypothesis at a significance level of 0.05.
+
+## Comments 
+
+From the inferential analysis, we found statistical evidence that there is a statistically significant difference in mean scaled math scores across the class types. However, to state that class type was the cause of this difference, we need to ensure that our experimental design was a well-randomized and controlled experiment, as well as controlling for other confounding variables that might have influenced mean scaled math scores other than the class type. In other words, we also need to ensure that we have all relevant predictor variables (main effects) in the model to minimize the influence of potential confounders.
+
+1. First of all, we know that the STAR project is a government-funded project, which means all processes and procedures were inspected and screened by many professional statisticians and educators. Most importantly, it is still known as one of the best randomized and controlled large-scale experiments in educational history.
+
+2. Also, through background and descriptive statistics, we carefully inspected all variables and figured out that class type, school, and ethnicity are most likely to be main effects.
+
+Assuming that what we discovered in this report is correct, we can claim that class size was a cause of the difference in mean scaled math score, and small class size has the highest mean score than other class types. This causal statement is based on this report, but if evidence shows that the experiment has significant bias or the existence of other significant main effects is discovered, then this causal statement cannot be held.
+
+# Sensitivity Analysis
+
+In the sensitivity analysis, we will explore whether the assumptions we made for the ANOVA model are plausible. 
+
+## Equal Variance Assumption 
+
+To see if we have an equal variance across the groups, we should observe residual vs fitted plot and check if we have even spread of points around the y = 0. 
+
+```{r}
+ggplot(anova.fit) +
+  geom_point(aes(x = .fitted, y = .resid), color = "deeppink4") +
+  labs(title = "Residual vs. Fitted Plot", x = "Fitted Math Score", y = "Residuals") +
+  theme_bw() +
+  theme(panel.grid.major.y = element_blank(),
+        legend.position = "off")
+```
+
+The plot above shows fairly even spread of points around the line y = 0, help us to make a claim that the variance across the group might be equal. We can statistically test such claim using the Levene Test. 
+
+The hypothesis of the Levene Test is: 
+
+$$H_{0}: {\rm expected \ absolute \ deviation \ across \ the \ all \ groups \ are \ equal.  } \\ H_{1}:  {\rm expected \ absolute \ deviation \ across \ the \ all \ groups \ are \ not \ equal.  } $$
+
+```{r}
+#Levene Test
+leveneTest(math1 ~ star1 * schoolid1 * ethnicity, data=cleaned_STAR)
+```
+The result of the Levene test indicates that we can reject the null hypothesis at a significance level of 0.05, providing statistical evidence that the variance across the groups is not equal. A violation in the variance assumption seems plausible, as we already observed from our descriptive analysis that each class size and ethnicity had a different length of box-whisker plot. Particularly for ethnicity, the extreme distribution of samples contributed to making unequal variance across the groups.
+
+Although there is a clear violation in the equal variance assumption, it is likely that it will not change our conclusion of the inferential analysis. This is because the F-value for class type was high enough, resulting in a very small p-value for the F-test. Therefore, the violation in the equal variance assumption is less likely to alter the result.
+
+## Normality Assumption 
+
+We assumed that error will be normally distributed, therefore our response variable will be normally distributed as well. We can check the following assumption by observing the QQ plot.
+
+```{r}
+ggplot(anova.fit , aes(sample = rstandard(anova.fit))) +
+  geom_qq(color = 'deeppink4') +
+  stat_qq_line(color = 'azure4') +
+  labs(title = "QQ Plot", x = "Theoretical Quantile", y = "Standardized Residual Quantile") +
+  theme_bw() +
+  theme(panel.grid.major.y = element_blank(),
+        legend.position = "off")
+```
+```{r}
+shapiro.test(cleaned_STAR$math1[0:5000])
+```
+
+The QQ plot shows heavy tails at both ends, indicating that our normality assumption is quite dubious. Applying the Shapiro-Wilk normality test, we obtain the result that we can reject the null hypothesis that the sample is from a normal distribution at a significance level of 0.05, implying that our response variable is not normally distributed. To remedy this, we can apply a Box-Cox transformation or log transformation to mitigate the heavy tails. However, it is worth noting that the ANOVA model is usually robust to violations of normality. Despite this, we still reject the null hypothesis at a significance level of 0.05.
+
+```{r}
+Anova(lm(log(math1) ~ star1 + schoolid1 +ethnicity, data=anova_df), type=2)
+```
+
+# Discussion
+
+Throughout the following report, we meticulously analyzed the dataset to identify all possible main effects (which included class type, school, and ethnicity), constructed a Three-Way ANOVA model, and conducted tests to investigate whether there are any differences in math-scaled scores in 1st grade across class types and which class type is associated with the highest math-scaled scores in 1st grade. Through inferential analysis, we found statistical evidence that the mean of scaled math scores differed across class types, and assuming the experiment is controlled and randomized, we conclude that class size was a factor causing the difference in the mean of scaled math scores. Additionally, using Tukey's Range Test, we found evidence that small class size is most likely associated with the highest mean math score.
+
+However, the current report also has clear limitations as some variables exhibited extreme distributions, leading to several of our ANOVA assumptions not being met. The extreme distribution of some variables also hindered further exploration of the dataset, such as the effect of teacher's experience on student performance or the effect of ethnicity on student test scores.
+
+Although we discovered that small class size brings benefits to students, further research and analysis are needed to determine if the benefits of reducing class size continue with higher grade levels. Additionally, for future research, it would be beneficial to include a greater variety of ethnicities, not just Caucasian and African American, so that we can analyze the effect of class size on the performance of different ethnic groups. Furthermore, in addition to more extensive research on the effect of class size, since reducing class size incurs significant costs ("With an average U.S. teacher salary of approximately $55,000,[8] each student has an individual cost of about $3,600 in teacher salary alone" (Chingo et al. 4)), it would be prudent to explore other cost-effective methods for improving student performance.
+
+# Appendix 
+
+### Figure 1 
+
+```{r}
+box_plot_data <- STAR_copy %>%
+                    select(degree1, residuals)
+
+# Constructing boxplot 
+
+ggplot(box_plot_data, aes(x = degree1, y = residuals)) +
+  geom_boxplot(fill = "deeppink4", color = "azure4", lwd =0.7) + 
+  labs(title="Box Plot of Residuals vs. Type of Degree (Teacher)", x="Type of Degree", y = "Residuals") + 
+  # geom_abline(intercept = 180, slope = -25, linewidth =1.5, color = 'deeppink3', linetype = "dashed") +
+  #  geom_abline(intercept = -125, slope = 15, linewidth =1.5, color = 'deeppink3', linetype = "dashed") +
+  theme_bw() +
+  theme(panel.grid.major.y = element_blank(),
+        legend.position = "off")
+```
+
+### Figure 2 
+
+```{r warning = FALSE, message= FALSE}
+#Distribution of Average Score by Each Teacher 
+ggplot(data_sum, aes(x = mean)) +
+  geom_histogram(fill = "deeppink4", color = "azure4") +
+  labs(x = "Mean Score",
+       y = "Count",
+       title = "Distribution of Average Score by Each Teacher") +
+  theme_bw() +
+  theme(panel.grid.major.y = element_blank(),
+        legend.position = "off")
+```
+
+### Figure 3
+
+```{r warning = FALSE, message= FALSE}
+summary <- STAR %>%
+                group_by(schoolid1) %>%
+                summarise(mean = mean(math1, na.rm = T))
+
+ggplot(summary, aes(x = mean)) +
+  geom_histogram(fill = "deeppink4", color = "azure4") +
+  labs(x = "Mean Score",
+       y = "Count",
+       title = "Distribution of Scaled Math Score By School ID") +
+  theme_bw() +
+  theme(panel.grid.major.y = element_blank(),
+        legend.position = "off")
+```
+
+# Acknowledgement 
+
+The report used ChatGPT as a tool to identify and correct grammatical errors only. 
+Here is all record of Chat GPT usage: https://chat.openai.com/share/96df2802-4ab0-4e31-aa03-76578bb5cfbd
+
+# Reference 
+
+1. C.M. Achilles; NCPEA Policy Brief: Class-Size Policy: The STAR Experiment and Related Class-Size Studies, Oct. 2012, https://www.ncpeapublications.org/attachments/article/524/ClassSize.pdf
+
+2. C.M. Achilles; Helen Pate Bain; Fred Bellott; Jayne Boyd-Zaharias; Jeremy Finn; John Folger; John Johnston; Elizabeth Word, 2008, "Tennessee's Student Teacher Achievement Ratio (STAR) project", https://doi.org/10.7910/DVN/SIWH9F, Harvard Dataverse, V1; Project STAR K-3 summary report.pdf 
+
+3. Kweon, Byoung-Suk, et al. “The link between school environments and student academic performance.” Urban Forestry & Urban Greening, vol. 23, 17 Feb. 2017, pp. 35–43, https://doi.org/10.1016/j.ufug.2017.02.002. 
+
+4. Mosteller , Frederick. “The Case for Smaller Classes.” Harvard Magazine, Harvard University, 28 Aug. 2019, www.harvardmagazine.com/2019/08/case-for-smaller-classes. 
+
+5. Whitehurst, Grover J., and Matthew M. Chingos. “Class Size: What Research Says and What It Means for State Policy.” The Brookings Institution, 11 May 2011, www.brookings.edu/articles/class-size-what-research-says-and-what-it-means-for-state-policy/. 
+
+6. https://www.r-bloggers.com/2016/06/clustering-mixed-data-types-in-r/
+
+
+# Session Information 
+
+```{r}
+sessionInfo()
+```
+
+

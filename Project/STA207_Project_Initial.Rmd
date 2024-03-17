@@ -1,0 +1,396 @@
+---
+title: "Initial Analysis Report"
+date: "2024-02-06"
+author: "Dae Hyeun Cheong"
+table: yes
+output:
+  rmdformats::readthedown:
+    default_style: "light"
+    downcute_theme: "default"
+    self_contained: true
+    thumbnails: false
+    lightbox: true
+    gallery: true
+    highlight: tango
+    code_folding: hide
+---
+
+```{r include = FALSE}
+library("AER")
+library("dplyr")
+library("ggplot2")
+library("kableExtra")
+library("tidyverse")
+data("STAR")
+```
+
+# Descriptive Analysis
+
+### Student's Performance By Teachers
+
+The following table summarizes student's performance using six different statistics, aggregated by each teachers. The NULL values are removed to get the statistics. 
+
+```{r warning = FALSE, message= FALSE}
+
+data = STAR %>% 
+        group_by(star1, experience1, tethnicity1, schoolid1) %>%
+        summarise(
+          median = median(math1, na.rm = T),
+          mean = mean(math1, na.rm = T),
+          min = min(math1, na.rm = T),
+          max = max(math1, na.rm = T),
+          Q1 = quantile(math1, 0.25, na.rm = T),
+          Q3 = quantile(math1, 0.75, na.rm = T)
+        )
+head(data, 10) %>%
+  kbl(caption = "Summary Measures of each Teachers") %>%
+  kable_classic(full_width = F, html_font = "Cambria")
+```
+
+The following histogram shows a distribution of mean score by each teacher. For our dataset, mean is better summary statistics than median since math score will not have any outliers due to its fixed maximum. Note that distribution looks approximately normal by the central limit theorem. 
+
+```{r warning = FALSE, message= FALSE}
+#Distribution of Average Score by Each Teacher 
+ggplot(data, aes(x = mean)) +
+  geom_histogram(fill = "deeppink4", color = "azure4") +
+  labs(x = "Mean Score",
+       y = "Count",
+       title = "Distribution of Average Score by Each Teacher") +
+  theme_bw() +
+  theme(panel.grid.major.y = element_blank(),
+        legend.position = "off")
+```
+
+### Possibly Relevant Variables
+
+According to the description of the data, it is clear that teacher is also an important source of variation. The observation lead to the conclusion that experiences, ladder and earned-degree of the teacher should be counted as part of our analysis. The `experience1` is only numerical variable. `ladder1` and `degree1` are categorical variables.  
+
+Also, there is some possibility that student's level of economic status can be an significant source of the variation. Therefore, `lunch1` should be also regarded as a possibly relevant variable. This is also a categorical variable. 
+
+It is important to note that, according to the frequency table, the data contains many NA values. According to the description of the dataset, NA values indicates student who was not able to take the test. For our analysis, these observations will be removed for the sake of analysis.  
+
+```{r}
+data2 = STAR %>%
+          select(lunch1, degree1, ladder1, experience1)
+
+lunch1_df <- as.data.frame(table(data2$lunch1, useNA = "always"))
+colnames(lunch1_df) <- c("lunch1", "Frequency")
+
+degree1_df <- as.data.frame(table(data2$degree1, useNA = "always"))
+colnames(degree1_df) <- c("degree1", "Frequency")
+
+ladder1_df <- as.data.frame(table(data2$ladder1, useNA = "always"))
+colnames(ladder1_df) <- c("ladder1", "Frequency")
+
+experience1_df <- as.data.frame(
+  summarise(data2,
+          median = median(experience1, na.rm = T),
+          mean = mean(experience1, na.rm = T),
+          min = min(experience1, na.rm = T),
+          max = max(experience1, na.rm = T),
+          Q1 = quantile(experience1, 0.25, na.rm = T),
+          Q3 = quantile(experience1, 0.75, na.rm = T)
+        ))
+
+kable(experience1_df, booktabs =TRUE,
+      caption = "Summary Statistics for experience1")
+
+
+kable(list(lunch1_df, degree1_df, ladder1_df), booktabs =TRUE,
+      caption = "Frequency Table for lunch1, degree1 and ladder1")
+```
+
+The following bar plots for `lunch1`, `degree1` and `ladder1` shows that we have many NA values. Except `lunch1`, `degree1` and `ladder1` shows a uneven distribution, indicating that it is possible that many teachers who participated to the research are not very experienced teacher. 
+
+```{r}
+ggplot(lunch1_df,
+       aes(x = Frequency, y = lunch1)) +
+  geom_bar(stat = "identity", fill = "deeppink4", width = 0.6) +
+  labs(x = "Frequency",
+       y = "Free Lunch",
+       title = "Distribution of Free-Lunch Qualification (lunch1)") +
+  theme_bw() +
+  theme(panel.grid.major.y = element_blank(),
+        legend.position = "off")
+```
+
+```{r}
+ggplot(degree1_df,
+       aes(x = Frequency, y = reorder(degree1, Frequency))) +
+  geom_bar(stat = "identity", fill = "deeppink4", width = 0.6) +
+  labs(x = "Frequency",
+       y = "Type of Degree",
+       title = "Distribution of Highest Degree of 1st Grade Teacher (degree1)") +
+  theme_bw() +
+  theme(panel.grid.major.y = element_blank(),
+        legend.position = "off")
+```
+
+```{r}
+ggplot(ladder1_df,
+       aes(x = Frequency, y = reorder(ladder1, Frequency))) +
+  geom_bar(stat = "identity", fill = "deeppink4", width = 0.6) +
+  labs(x = "Frequency",
+       y = "Type of Career Ladder Level",
+       title = "Distribution of Career Ladder Level of 1st Grade Teacher (ladder1)") +
+  theme_bw() +
+  theme(panel.grid.major.y = element_blank(),
+        legend.position = "off")
+```
+
+The boxplot of `experience1` shows a right-skewed distribution, which supports our claim that there is a possibility that many teachers who participated the research are not very experienced. 
+
+```{r warning = FALSE}
+ggplot(data2, aes(x = factor(1), y = experience1)) +
+  geom_boxplot(fill = "deeppink4", color = "azure4", lwd =0.7) + 
+  labs(title="Box Plot of experience1", x="Experience1", y = " ") + 
+  theme_bw() +
+  theme(panel.grid.major.y = element_blank(),
+        legend.position = "off")
+```
+
+### Multivariate Analysis
+
+The box plot shown below (Box Plot of Scaled Math Score vs. Class Type) clearly shows that box plot is not enough to answer our primary question of interest (whether there is any differences in math scaled scores in 1st grade across class types) due to similarity of its shape across the class types. This indicates we need a statistical test to answer our question. 
+
+
+```{r}
+box_plot_data <- STAR %>%
+                    select(star1, math1) %>%
+                    filter(!is.na(star1) & !is.na(math1)) 
+
+ggplot(box_plot_data, aes(x = star1, y = math1)) +
+  geom_boxplot(fill = "deeppink4", color = "azure4", lwd =0.7) + 
+  labs(title="Box Plot of Scaled Math Score vs. Class Type", x="Class Type", y = "Scaled Math Score") + 
+  theme_bw() +
+  theme(panel.grid.major.y = element_blank(),
+        legend.position = "off")
+```
+
+```{r}
+box_plot_data <- STAR %>%
+                    select(ladder1,degree1, math1) %>%
+                    filter(!is.na(ladder1) & !is.na(math1))
+
+ggplot(box_plot_data, aes(x = degree1, y = math1)) +
+  geom_boxplot(fill = "deeppink4", color = "azure4", lwd =0.7) + 
+  labs(title="Box Plot of Scaled Math Score vs. Class Type", x="Class Type", y = "Scaled Math Score") + 
+  theme_bw() +
+  theme(panel.grid.major.y = element_blank(),
+        legend.position = "off")
+```
+```{r}
+anova_df <- STAR %>% 
+              select(math1, star1, ladder1, schoolid1, experience1, tethnicity1) %>%
+              filter(!is.na(math1) & !is.na(ladder1) & !is.na(schoolid1)) %>%
+              group_by(star1, schoolid1, experience1, tethnicity1, ladder1) %>%
+              summarise(math1 = mean(math1))
+```
+
+
+```{r}
+tukey_anova <- aov(math1 ~ ladder1, data = anova_df)
+t <-TukeyHSD(tukey_anova, conf.level = 0.95)
+df <- as.data.frame(t$ladder1)
+df$ladder_type <- rownames(df)
+ggplot(df, aes(x = ladder_type, y = diff)) +
+  geom_pointrange(aes(ymin = lwr, ymax = upr), lwd =1.5, size = 0.7, col = "deeppink4")+
+   geom_hline(yintercept=0, linetype='dotted', col = 'azure4', lwd =1) +
+  labs(x = "Class Size",
+       y = "Difference in Mean",
+       title = "95% Familiy-Wise Confidence Interval of Difference of Means Using Tukey's Range Test") +
+  theme_bw() +
+  theme(panel.grid.major.y = element_blank(),
+        legend.position = "off") +
+  theme(plot.title = element_text(size=10))
+  
+```
+
+
+
+```{r}
+plot(anova_df$math1 ~ anova_df$experience1, col = anova_df$star1)
+```
+
+
+
+The distribution of scaled math score by school ID shows that we have uneven distribution of math score. 
+
+```{r}
+summary <- STAR %>%
+                group_by(schoolid1) %>%
+                summarise(mean = mean(math1, na.rm = T))
+
+head(summary, 10) %>%
+  kbl(caption = "Average Scaled Math Score By School ID (First 10)") %>%
+  kable_classic(full_width = T, html_font = "Cambria")
+```
+
+```{r warning = FALSE, message= FALSE}
+ggplot(summary, aes(x = mean)) +
+  geom_histogram(fill = "deeppink4", color = "azure4") +
+  labs(x = "Mean Score",
+       y = "Count",
+       title = "Distribution of Scaled Math Score By School ID") +
+  theme_bw() +
+  theme(panel.grid.major.y = element_blank(),
+        legend.position = "off")
+```
+
+# Inferential Analysis
+
+### Choice of Model
+
+The model is defined with a two way ANOVA model as follows
+
+$$Y_{ijk} = \mu_{..} + \alpha_{i} + \beta_{j} + \epsilon_{ijk}$$
+
+where the index $i$ represents the class type: small ($i=1$), regular ($i=2$), regular with aide ($i=3$), and the index $j$ ($j = 1,...,76)$ represents the school indicator. The index $k$ ($k = 1,...,n_{ij}$) represents the teacher of the $i$th class type and in the $j$th school.
+
+Note that we have far more $\beta_{j}$ than $\alpha_{i}$. Including the interaction terms $\alpha_{i} \beta_{j}$ into the model will significantly increases the complexity of the model. Since our question of interest is mostly related with $\alpha_{i}$, increasing the model complexity by introducing the interaction terms will not significantly help our analysis. Therefore, the interaction terms will not be included to the model.  
+
+***Explanation of the notation***
+
+-   $Y_{ijk}$ represents the mean math scaled score of 1st grade students of the $i$ th class type and the $j$ th school for the $k$ th teacher.
+
+-   $\mu_{..}$ represents the overall mean of math scaled scores of all students regardless of class types and school.
+
+-   $\alpha_{i}$ represents the main effect of the $i$ th class type. We have constraint that $\sum_i \alpha_{i} = 0$.
+
+-   $\beta_{j}$ represents the main effect of the $j$ th school. We have constraint that $\sum_j \beta_{j} = 0$.
+
+-   $\epsilon_{ijk}$ represents the random error in the $i$ th class type and the $j$th school for the $k$ th teacher.
+
+***Assumptions of the Model***
+
+We have $\{\epsilon_{ijk}\}$ are independently and identically distributed $N(0,\sigma^2)$. This implies that our response variable $Y_{ijk}$ is also normally distributed and variance across the each group is equal.
+
+### Model Fitting 
+
+The fitted result is very lengthy because we have many factor levels for `schoolid1`. The coefficients of the model should be interpreted as follow:
+
+1. Intercept: mean math scaled score of 1st grade students of the regular class type of the school with schoolid 1. 
+
+2. Coefficient of class type variable: change in mean math score of 1st grade students by changing the class type, assuming that every other variable stays the same. 
+
+3. Coefficient of schoolid variable: change in mean math score of 1st grade students by changing the schoolid, assuming that every other variable stays the same. 
+
+By observing these interpretation of each coefficient, we can clearly see that reporting these coefficient is not very helpful in answering our question of interest. 
+
+```{r warning = FALSE, message = FALSE}
+anova_df <- STAR %>% 
+              select(math1, star1, schoolid1, experience1, tethnicity1) %>%
+              filter(!is.na(math1) & !is.na(star1) & !is.na(schoolid1)) %>%
+              group_by(star1, schoolid1, experience1, tethnicity1) %>%
+              summarise(math1 = mean(math1))
+
+y = lm(math1 ~ star1 + schoolid1, data=anova_df)
+summary(y)
+```
+
+
+### F-Test 
+
+To answer the question of interest whether there is any differences in math scaled scores in 1st grade across class types, we can perform the F-test using anova using a significance level of 0.05. The hypothesis to test will be: 
+
+$$H_{0}: \alpha_{i} = 0 \\ H_{1}: {\rm not \ all\ } \alpha_{i} {\rm \ are \ } 0 $$
+
+```{r warning = FALSE}
+t2 = Anova(lm(math1 ~ star1 + schoolid1, data=anova_df), type=2)
+t2
+```
+***Key Findings***
+
+1. The bigger than F-value is, there is greater variation between the means of each group than variation within the sample. Since we have higher F-value for class type than school id, it implies that the mean of math test score across the school was more similar than the mean of math test score across the class types.  
+
+2. The P-value of the class type is far below 0.05, we can reject our null hypothesis at significance level of 0.05. This means we can conclude that we there exist a statistically significant difference in mean across the class type, answering our question of interest that there is a differences in math scaled scores in 1st grade across class types at significance level of 0.05.
+
+### Tukey's Range Test
+
+We perform the Tukey's Range Test to see which class type is associated with the highest math scaled scores in 1st grade. The plot below shows 95% Familiy-Wise Confidence Interval of Difference of Means Using Tukey's Range Test.
+
+```{r}
+tukey_anova <- aov(math1 ~ star1, data = anova_df)
+t <-TukeyHSD(tukey_anova, conf.level = 0.95)
+df <- as.data.frame(t$star1)
+df$class_type <- rownames(df)
+ggplot(df, aes(x = class_type, y = diff)) +
+  geom_pointrange(aes(ymin = lwr, ymax = upr), lwd =1.5, size = 0.7, col = "deeppink4")+
+   geom_hline(yintercept=0, linetype='dotted', col = 'azure4', lwd =1) +
+  labs(x = "Class Size",
+       y = "Difference in Mean",
+       title = "95% Familiy-Wise Confidence Interval of Difference of Means Using Tukey's Range Test") +
+  theme_bw() +
+  theme(panel.grid.major.y = element_blank(),
+        legend.position = "off") +
+  theme(plot.title = element_text(size=10))
+  
+```
+
+***Key Findings***
+
+1. From the plot above, we can statistically conclude that there is no difference in mean between regular and regular+aide at significance level of 0.05. This implies that effect of having academic aide inside the classroom might be negligible that it does not improve student's math test score. 
+
+2. The plot demonstrate that difference in mean between regular+aide and small is statistically negative and difference in mean between small and regular is statistically positive (both at significance level of 0.05). The such results implies that there exists a statistical evidence that small class size is more associated with the highest math scaled score in the 1st grade.   
+
+# Sensitivity Analysis
+
+In the sensitivity analysis, we will explore whether the assumptions we made for the ANOVA model are plausible. 
+
+### Equal Variance Assumption 
+
+To see if we have an equal variance across the groups, we should observe residual vs fitted plot and check if we have even spread of points around the y = 0. 
+
+```{r}
+ggplot(y) + 
+  geom_point(aes(x = .fitted, y = .resid), color = "deeppink4") +
+  labs(title = "Residual vs. Fitted Plot", x = "Fitted Math Score", y = "Residuals") +  
+  theme_bw() +
+  theme(panel.grid.major.y = element_blank(),
+        legend.position = "off")
+```
+
+The plot above shows fairly even spread of points around the line y = 0, help us to make a claim that the variance across the group might be equal. We can statistically test such claim using the Levene Test. 
+
+The hypothesis of the Levene Test is: 
+
+$$H_{0}: {\rm expected \ absolute \ deviation \ across \ the \ all \ groups \ are \ equal.  } \\ H_{1}:  {\rm expected \ absolute \ deviation \ across \ the \ all \ groups \ are \ not \ equal.  } $$
+
+```{r}
+#Levene Test
+leveneTest(math1 ~ star1 * schoolid1, data=STAR)
+```
+The result of the levene test shows that we can reject the null hypothesis at the significance level of 0.05, so we have statistical evidence that the variance across the groups are not equal. The result is quiet surprising that it counters our previous claim that variance across the group will be equal. This result show that our equal variance assumption is not feasible for the given dataset. 
+
+### Normality Assumption 
+
+We assumed that error will be normally distributed, therefore our response variable will be normally distributed as well. We can check the following assumption by observing the QQ plot.
+
+```{r}
+ggplot(y , aes(sample = rstandard(y))) + 
+  geom_qq(color = 'deeppink4') + 
+  stat_qq_line(color = 'azure4') + 
+  labs(title = "QQ Plot", x = "Theoretical Quantile", y = "Standardized Residual Quantile") +  
+  theme_bw() +
+  theme(panel.grid.major.y = element_blank(),
+        legend.position = "off")
+```
+
+The QQ plot shows heavy tail at the both ends, indicating that our normality assumption is quiet dubious. We can further apply some transformation to remedify the problem. 
+
+# Acknowledgement {-}
+
+# Reference {-}
+
+Imbens, G., & Rubin, D. (2015). Stratified Randomized Experiments. In Causal Inference for Statistics, Social, and Biomedical Sciences: An Introduction (pp. 187-218). Cambridge: Cambridge University Press. doi:10.1017/CBO9781139025751.010
+
+# Session info {-}
+
+<span style='color:blue'>
+Report information of your `R` session for reproducibility. 
+</span> 
+
+
+```{r}
+sessionInfo()
+```
